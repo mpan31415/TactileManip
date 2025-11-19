@@ -25,13 +25,12 @@ class PalmSensorRecorder(Node):
 
 
     def fingers_cb(self, msg: SensStream):
-        # Fingers sensor pos ordering:
-        # [1, 2, 3] - thumb (tip to base)
-        # [4, 5, 6, 7] - index (tip to base)
-        # [8, 9, 10, 11] - middle (tip to base)
-        # [12, 13, 14, 15] - ring (tip to base)
+        # Palm sensor pos ordering:
+        # 1 - top right
+        # 2 - top left
+        # 3 - bottom left
         sensors = msg.sensors
-        taxels = extract_finger_sensor_data(sensors[SENSOR_IDX - 1])    # shape = (4, 4, 3)
+        taxels, forces = extract_palm_sensor_data(sensors[SENSOR_IDX - 1])    # shape = (4, 6, 3)
 
         if self.current_mean is None:
             self.current_mean = taxels
@@ -45,7 +44,7 @@ class PalmSensorRecorder(Node):
 
         if self.count >= self.max_count:
             save_dir = "/home/mpan31415/ros2_ws/src/TactileManip/hand_interface/scripts/calib/taxel_mean/"
-            filename = save_dir + f"finger_sensor_{SENSOR_IDX}_mean.npy"
+            filename = save_dir + f"palm_sensor_{SENSOR_IDX}_mean.npy"
             self.save_to_file(filename)
             rclpy.shutdown()
 
@@ -63,12 +62,13 @@ class PalmSensorRecorder(Node):
 
 
 
-def extract_finger_sensor_data(sensor: SensorFull):
-    pos = sensor.sensor_pos
+def extract_palm_sensor_data(sensor: SensorFull):
     taxel_msgs = sensor.taxels
-    # convert to numpy array, shape = (4, 4, 3)
-    taxels = np.array([[taxel_msg.x, taxel_msg.y, taxel_msg.z] for taxel_msg in taxel_msgs]).reshape((4, 4, 3))
-    return taxels
+    force_msgs = sensor.forces
+    # convert to numpy arrays, shape = (4, 6, 3)
+    taxels = np.array([[taxel_msg.x, taxel_msg.y, taxel_msg.z] for taxel_msg in taxel_msgs]).reshape((4, 6, 3))
+    forces = np.array([[force_msg.x, force_msg.y, force_msg.z] for force_msg in force_msgs]).reshape((4, 6, 3))
+    return taxels, forces
 
 
 ############################################################

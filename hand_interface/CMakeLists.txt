@@ -20,10 +20,14 @@ install(DIRECTORY launch/
 
 ### Install Python nodes ###
 install(PROGRAMS
+
   scripts/hand_control_test.py
 
   scripts/calib/finger_sensor_recorder.py
+  scripts/calib/palm_sensor_recorder.py
+
   scripts/tactile_listener.py
+
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -7,6 +7,7 @@ from xela_server_ros2.msg import SensStream, SensorFull
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 ############################################################
@@ -81,18 +82,21 @@ class TactileListener(Node):
             
     
     def init_tactile_plot(self):
+        # Turn off constrained_layout / tight_layout to avoid fighting with manual layout
         plt.ion()
-        self.tactile_fig = plt.figure(figsize=(12, 8), constrained_layout=True)
+        self.tactile_fig = plt.figure(figsize=(6, 8), constrained_layout=False)
 
         # -----------------------------
         # GridSpec layout (hand shape)
         # -----------------------------
-        gs = GridSpec(12, 8, figure=self.tactile_fig, wspace=0.1, hspace=0.1)  # flexible hand layout
+        # Use an explicit grid and set equal width/height ratios so cells are uniform.
+        nrows, ncols = 28, 21
+        gs = GridSpec(nrows, ncols, figure=self.tactile_fig, wspace=0.3, hspace=0.3)
 
         # ---- Thumb: 3 heatmaps ----
-        thumb_ax1 = self.tactile_fig.add_subplot(gs[6:8, 6:8])
-        thumb_ax2 = self.tactile_fig.add_subplot(gs[8:10, 6:8])
-        thumb_ax3 = self.tactile_fig.add_subplot(gs[10:12, 6:8])
+        thumb_ax1 = self.tactile_fig.add_subplot(gs[12:16, 17:21])
+        thumb_ax2 = self.tactile_fig.add_subplot(gs[17:21, 16:20])
+        thumb_ax3 = self.tactile_fig.add_subplot(gs[22:26, 15:19])
         self.thumb_axes = [thumb_ax1, thumb_ax2, thumb_ax3]
 
         # store finger axes in a dict
@@ -100,34 +104,34 @@ class TactileListener(Node):
         self.finger_axes = {k: [] for k in finger_positions}
 
         # ---- Index: 4 heatmaps ----
-        index_ax1 = self.tactile_fig.add_subplot(gs[0:2, 4:6])
-        index_ax2 = self.tactile_fig.add_subplot(gs[2:4, 4:6])
-        index_ax3 = self.tactile_fig.add_subplot(gs[4:6, 4:6])
-        index_ax4 = self.tactile_fig.add_subplot(gs[6:8, 4:6])
+        index_ax1 = self.tactile_fig.add_subplot(gs[0:4, 10:14])
+        index_ax2 = self.tactile_fig.add_subplot(gs[5:9, 10:14])
+        index_ax3 = self.tactile_fig.add_subplot(gs[10:14, 10:14])
+        index_ax4 = self.tactile_fig.add_subplot(gs[15:19, 10:14])
         self.finger_axes["index"] = [index_ax1, index_ax2, index_ax3, index_ax4]
 
         # ---- Middle: 4 heatmaps ----
-        middle_ax1 = self.tactile_fig.add_subplot(gs[0:2, 2:4])
-        middle_ax2 = self.tactile_fig.add_subplot(gs[2:4, 2:4])
-        middle_ax3 = self.tactile_fig.add_subplot(gs[4:6, 2:4])
-        middle_ax4 = self.tactile_fig.add_subplot(gs[6:8, 2:4])
+        middle_ax1 = self.tactile_fig.add_subplot(gs[0:4, 5:9])
+        middle_ax2 = self.tactile_fig.add_subplot(gs[5:9, 5:9])
+        middle_ax3 = self.tactile_fig.add_subplot(gs[10:14, 5:9])
+        middle_ax4 = self.tactile_fig.add_subplot(gs[15:19, 5:9])
         self.finger_axes["middle"] = [middle_ax1, middle_ax2, middle_ax3, middle_ax4]
 
         # ---- Ring: 4 heatmaps ----
-        ring_ax1 = self.tactile_fig.add_subplot(gs[0:2, 0:2])
-        ring_ax2 = self.tactile_fig.add_subplot(gs[2:4, 0:2])
-        ring_ax3 = self.tactile_fig.add_subplot(gs[4:6, 0:2])
-        ring_ax4 = self.tactile_fig.add_subplot(gs[6:8, 0:2])
+        ring_ax1 = self.tactile_fig.add_subplot(gs[0:4, 0:4])
+        ring_ax2 = self.tactile_fig.add_subplot(gs[5:9, 0:4])
+        ring_ax3 = self.tactile_fig.add_subplot(gs[10:14, 0:4])
+        ring_ax4 = self.tactile_fig.add_subplot(gs[15:19, 0:4])
         self.finger_axes["ring"] = [ring_ax1, ring_ax2, ring_ax3, ring_ax4]
 
         # ---- Palm: 3 heatmaps ----
-        palm_ax1 = self.tactile_fig.add_subplot(gs[8:10, 3:6])
-        palm_ax2 = self.tactile_fig.add_subplot(gs[8:10, 0:3])
-        palm_ax3 = self.tactile_fig.add_subplot(gs[10:12, 0:3])
-        self.palm_axes = [palm_ax1, palm_ax2, palm_ax3]
+        palm_ax1 = self.tactile_fig.add_subplot(gs[20:24, 7:14])   # wider span
+        palm_ax2 = self.tactile_fig.add_subplot(gs[20:24, 0:7])  # below palm_ax1
+        palm_ax3 = self.tactile_fig.add_subplot(gs[24:28, 0:7])   # left of palm_ax1
+        self.palm_axes = [palm_ax1, palm_ax3, palm_ax2]  # keep your ordering if needed
 
         # -----------------------------
-        # Initialize heatmaps
+        # Initialize heatmaps (data shapes)
         # -----------------------------
         self.palm_heatmaps = [np.zeros((4, 6)) for _ in range(3)]
         self.thumb_heatmaps = [np.zeros((4, 4)) for _ in range(3)]
@@ -135,35 +139,25 @@ class TactileListener(Node):
         self.middle_heatmaps = [np.zeros((4, 4)) for _ in range(4)]
         self.ring_heatmaps = [np.zeros((4, 4)) for _ in range(4)]
 
-        self.palm_images = []
-        for ax, d in zip(self.palm_axes, self.palm_heatmaps):
-            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
+        # Helper to make each axis "fill" its GridSpec cell and not try to force aspect ratio
+        def init_image(ax, data, vmin=0.0, vmax=5.0):
+            img = ax.imshow(data, vmin=vmin, vmax=vmax, cmap='viridis', aspect='auto')
             ax.set_xticks([]); ax.set_yticks([])
-            self.palm_images.append(img)
+            # important: make axis fill the box allocated by GridSpec
+            ax.set_aspect('auto')
+            ax.set_adjustable('box')       # ensure the box is adjusted (not the data limits)
+            ax.set_anchor('C')            # center anchor to avoid odd offsets
+            return img
 
-        self.thumb_images = []
-        for ax, d in zip(self.thumb_axes, self.thumb_heatmaps):
-            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
-            ax.set_xticks([]); ax.set_yticks([])
-            self.thumb_images.append(img)
+        # Create images
+        self.palm_images = [init_image(ax, d) for ax, d in zip(self.palm_axes, self.palm_heatmaps)]
+        self.thumb_images = [init_image(ax, d) for ax, d in zip(self.thumb_axes, self.thumb_heatmaps)]
+        self.index_images = [init_image(ax, d) for ax, d in zip(self.finger_axes["index"], self.index_heatmaps)]
+        self.middle_images = [init_image(ax, d) for ax, d in zip(self.finger_axes["middle"], self.middle_heatmaps)]
+        self.ring_images = [init_image(ax, d) for ax, d in zip(self.finger_axes["ring"], self.ring_heatmaps)]
 
-        self.index_images = []
-        for ax, d in zip(self.finger_axes["index"], self.index_heatmaps):
-            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
-            ax.set_xticks([]); ax.set_yticks([])
-            self.index_images.append(img)
-
-        self.middle_images = []
-        for ax, d in zip(self.finger_axes["middle"], self.middle_heatmaps):
-            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
-            ax.set_xticks([]); ax.set_yticks([])
-            self.middle_images.append(img)
-
-        self.ring_images = []
-        for ax, d in zip(self.finger_axes["ring"], self.ring_heatmaps):
-            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
-            ax.set_xticks([]); ax.set_yticks([])
-            self.ring_images.append(img)
+        # final adjust: small margin so outer cells are not cut off
+        self.tactile_fig.subplots_adjust(left=0.03, right=0.95, top=0.98, bottom=0.02)
 
         plt.show()
 

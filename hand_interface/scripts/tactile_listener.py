@@ -27,11 +27,11 @@ class TactileListener(Node):
 
         # read taxel mean
         self.palm_taxel_mean, self.finger_taxel_mean = get_taxel_mean()    # shapes: (), (15, 4, 4, 3)
-        self.palm_taxel_stddev = 250.0       
+        self.palm_taxel_stddev = 400.0       
         self.finger_taxel_stddev = 250.0       # TODO: calibrate/estimate?
 
         # palm data plotter
-        plot_update_freq = 10.0    # Hz
+        plot_update_freq = 20.0    # Hz
         self.timer = self.create_timer(1 / plot_update_freq, self.update_tactile_plot)
 
         # initialize plots
@@ -76,6 +76,14 @@ class TactileListener(Node):
             normalized_taxels = (taxels - self.finger_taxel_mean[i, :, :, :]) / self.finger_taxel_stddev
 
             # TODO: apply rotation to align
+            if i+1 in [1, 4, 8, 12]:    # fingertips: tranpose
+                normalized_taxels = np.transpose(normalized_taxels, (1, 0, 2))
+            elif i+1 in [2, 5, 9, 13]:    # 2nd from tip: rotate clockwise by 90 deg
+                normalized_taxels = np.rot90(normalized_taxels, -1, axes=(0, 1))
+            elif i+1 in [3, 6, 10, 14]:    # 3rd from tip: rotate anticlockwise by 90 deg
+                normalized_taxels = np.rot90(normalized_taxels, 1, axes=(0, 1))
+            elif i+1 in [7, 11, 15]:    # base (excluding thumb): rotate clockwise by 90 deg
+                normalized_taxels = np.rot90(normalized_taxels, -1, axes=(0, 1))
 
             # store
             self.finger_taxels[i, :, :, :] = normalized_taxels
@@ -125,10 +133,10 @@ class TactileListener(Node):
         self.finger_axes["ring"] = [ring_ax1, ring_ax2, ring_ax3, ring_ax4]
 
         # ---- Palm: 3 heatmaps ----
-        palm_ax1 = self.tactile_fig.add_subplot(gs[20:24, 7:14])   # wider span
-        palm_ax2 = self.tactile_fig.add_subplot(gs[20:24, 0:7])  # below palm_ax1
-        palm_ax3 = self.tactile_fig.add_subplot(gs[24:28, 0:7])   # left of palm_ax1
-        self.palm_axes = [palm_ax1, palm_ax3, palm_ax2]  # keep your ordering if needed
+        palm_ax1 = self.tactile_fig.add_subplot(gs[20:24, 7:14])
+        palm_ax2 = self.tactile_fig.add_subplot(gs[20:24, 0:7])
+        palm_ax3 = self.tactile_fig.add_subplot(gs[24:28, 0:7])
+        self.palm_axes = [palm_ax1, palm_ax2, palm_ax3]
 
         # -----------------------------
         # Initialize heatmaps (data shapes)

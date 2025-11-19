@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(xela_server_ros2 REQUIRED)
 
 ### Install launch files ###
 install(DIRECTORY launch/
@@ -19,7 +20,8 @@ install(DIRECTORY launch/
 
 ### Install Python nodes ###
 install(PROGRAMS
-  scripts/*.py
+  scripts/hand_control_test.py
+  scripts/tactile_listener.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

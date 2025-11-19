@@ -23,12 +23,16 @@ class TactileListener(Node):
         self.palm_tactile_data = np.zeros((3, 4, 6, 3))
         self.finger_tactile_data = np.zeros((15, 4, 4, 3))
 
+        # read taxel mean
+        self.taxel_mean = get_all_taxel_mean()  # shape = (15, 4, 4, 3)
+        self.taxel_stddev = 250.0       # TODO: calibrate/estimate somehow?
+
         # palm data plotter
         plot_update_freq = 10.0    # Hz
-        # self.timer = self.create_timer(1 / plot_update_freq, self.update_tactile_plot)
+        self.timer = self.create_timer(1 / plot_update_freq, self.update_tactile_plot)
 
         # initialize plots
-        # self.init_tactile_plot()
+        self.init_tactile_plot()
 
 
     # TODO:
@@ -54,21 +58,18 @@ class TactileListener(Node):
         sensors = msg.sensors
         for i in range(15):
             taxels = extract_finger_sensor_data(sensors[i])
-            self.finger_tactile_data[i, :, :, :] = taxels
-
-        min_val = np.min(self.finger_tactile_data)
-        max_val = np.max(self.finger_tactile_data)
-        print(f"Finger tactile data range: {min_val:.2f} to {max_val:.2f}")
+            # subtract mean
+            self.finger_tactile_data[i, :, :, :] = (taxels - self.taxel_mean[i, :, :, :]) / self.taxel_stddev
             
     
     def init_tactile_plot(self):
         plt.ion()
-        self.tactile_fig = plt.figure(figsize=(12, 8), constrained_layout=True)
+        self.tactile_fig = plt.figure(figsize=(9, 6), constrained_layout=True)
 
         # -----------------------------
         # GridSpec layout (hand shape)
         # -----------------------------
-        gs = GridSpec(12, 8, figure=self.tactile_fig)  # flexible hand layout
+        gs = GridSpec(12, 8, figure=self.tactile_fig, wspace=0.1, hspace=0.1)  # flexible hand layout
 
         # ---- Thumb: 3 heatmaps ----
         thumb_ax1 = self.tactile_fig.add_subplot(gs[6:8, 6:8])
@@ -118,31 +119,31 @@ class TactileListener(Node):
 
         self.palm_images = []
         for ax, d in zip(self.palm_axes, self.palm_heatmaps):
-            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis')
+            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
             ax.set_xticks([]); ax.set_yticks([])
             self.palm_images.append(img)
 
         self.thumb_images = []
         for ax, d in zip(self.thumb_axes, self.thumb_heatmaps):
-            img = ax.imshow(d, vmin=50000, vmax=70000, cmap='viridis')
+            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
             ax.set_xticks([]); ax.set_yticks([])
             self.thumb_images.append(img)
 
         self.index_images = []
         for ax, d in zip(self.finger_axes["index"], self.index_heatmaps):
-            img = ax.imshow(d, vmin=50000, vmax=70000, cmap='viridis')
+            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
             ax.set_xticks([]); ax.set_yticks([])
             self.index_images.append(img)
 
         self.middle_images = []
         for ax, d in zip(self.finger_axes["middle"], self.middle_heatmaps):
-            img = ax.imshow(d, vmin=50000, vmax=70000, cmap='viridis')
+            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
             ax.set_xticks([]); ax.set_yticks([])
             self.middle_images.append(img)
 
         self.ring_images = []
         for ax, d in zip(self.finger_axes["ring"], self.ring_heatmaps):
-            img = ax.imshow(d, vmin=50000, vmax=70000, cmap='viridis')
+            img = ax.imshow(d, vmin=0.0, vmax=5.0, cmap='viridis', aspect='auto')
             ax.set_xticks([]); ax.set_yticks([])
             self.ring_images.append(img)
 
@@ -190,6 +191,15 @@ class TactileListener(Node):
         # redraw
         self.tactile_fig.canvas.draw_idle()
         plt.pause(0.001)
+
+
+def get_all_taxel_mean():
+    all_taxel_mean = []
+    for sensor_idx in range(1, 16):
+        save_dir = "/home/mpan31415/ros2_ws/src/TactileManip/hand_interface/scripts/calib/taxel_mean/"
+        taxel_mean = np.load(save_dir + f"finger_sensor_{sensor_idx}_mean.npy")
+        all_taxel_mean.append(taxel_mean)
+    return np.array(all_taxel_mean)  # shape = (15, 4, 4, 3)
 
 
 def extract_palm_sensor_data(sensor: SensorFull):

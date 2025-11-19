@@ -20,12 +20,14 @@ class TactileListener(Node):
         self.fingers_sub = self.create_subscription(SensStream, 'xFingersTopic', self.fingers_cb, 10)
 
         # tactile data buffer
-        self.palm_tactile_data = np.zeros((3, 4, 6, 3))
-        self.finger_tactile_data = np.zeros((15, 4, 4, 3))
+        self.palm_forces = np.zeros((3, 4, 6, 3))
+        self.palm_taxels = np.zeros((3, 4, 6, 3))
+        self.finger_taxels = np.zeros((15, 4, 4, 3))
 
         # read taxel mean
-        self.taxel_mean = get_all_taxel_mean()  # shape = (15, 4, 4, 3)
-        self.taxel_stddev = 250.0       # TODO: calibrate/estimate somehow?
+        self.palm_taxel_mean, self.finger_taxel_mean = get_taxel_mean()    # shapes: (), (15, 4, 4, 3)
+        self.palm_taxel_stddev = 250.0       
+        self.finger_taxel_stddev = 250.0       # TODO: calibrate/estimate?
 
         # palm data plotter
         plot_update_freq = 10.0    # Hz
@@ -47,7 +49,18 @@ class TactileListener(Node):
         sensors = msg.sensors
         for i in range(3):
             taxels, forces = extract_palm_sensor_data(sensors[i])
-            self.palm_tactile_data[i, :, :, :] = forces
+            # normalize raw taxel data
+            normalized_taxels = (taxels - self.palm_taxel_mean[i, :, :, :]) / self.palm_taxel_stddev
+
+            # if 2nd or 3rd sensor, rotate data by 180 degrees to match physical orientation
+            if i+1 in [2, 3]:
+                normalized_taxels = np.rot90(normalized_taxels, 2, axes=(0, 1))
+                forces = np.rot90(forces, 2, axes=(0, 1))
+            
+            # store
+            self.palm_forces[i, :, :, :] = forces
+            self.palm_taxels[i, :, :, :] = normalized_taxels
+
 
     def fingers_cb(self, msg: SensStream):
         # Fingers sensor pos ordering:
@@ -58,13 +71,18 @@ class TactileListener(Node):
         sensors = msg.sensors
         for i in range(15):
             taxels = extract_finger_sensor_data(sensors[i])
-            # subtract mean
-            self.finger_tactile_data[i, :, :, :] = (taxels - self.taxel_mean[i, :, :, :]) / self.taxel_stddev
+            # normalize raw taxel data
+            normalized_taxels = (taxels - self.finger_taxel_mean[i, :, :, :]) / self.finger_taxel_stddev
+
+            # TODO: apply rotation to align
+
+            # store
+            self.finger_taxels[i, :, :, :] = normalized_taxels
             
     
     def init_tactile_plot(self):
         plt.ion()
-        self.tactile_fig = plt.figure(figsize=(9, 6), constrained_layout=True)
+        self.tactile_fig = plt.figure(figsize=(12, 8), constrained_layout=True)
 
         # -----------------------------
         # GridSpec layout (hand shape)
@@ -152,11 +170,11 @@ class TactileListener(Node):
 
     def update_tactile_plot(self):
         # data to plot
-        palm_norms = np.linalg.norm(self.palm_tactile_data, axis=3)
-        thumb_norms = np.linalg.norm(self.finger_tactile_data[0:3, :, :, :], axis=3)
-        index_norms = np.linalg.norm(self.finger_tactile_data[3:7, :, :, :], axis=3)
-        middle_norms = np.linalg.norm(self.finger_tactile_data[7:11, :, :, :], axis=3)
-        ring_norms = np.linalg.norm(self.finger_tactile_data[11:15, :, :, :], axis=3)
+        palm_norms = np.linalg.norm(self.palm_taxels, axis=3)
+        thumb_norms = np.linalg.norm(self.finger_taxels[0:3, :, :, :], axis=3)
+        index_norms = np.linalg.norm(self.finger_taxels[3:7, :, :, :], axis=3)
+        middle_norms = np.linalg.norm(self.finger_taxels[7:11, :, :, :], axis=3)
+        ring_norms = np.linalg.norm(self.finger_taxels[11:15, :, :, :], axis=3)
 
         # update palm
         for i in range(3):
@@ -193,30 +211,38 @@ class TactileListener(Node):
         plt.pause(0.001)
 
 
-def get_all_taxel_mean():
-    all_taxel_mean = []
+def get_taxel_mean():
+
+    # empty lists
+    palm_taxel_mean = []
+    finger_taxel_mean = []
+
+    # read data
+    for sensor_idx in range(1, 4):
+        save_dir = "/home/mpan31415/ros2_ws/src/TactileManip/hand_interface/scripts/calib/taxel_mean/"
+        taxel_mean = np.load(save_dir + f"palm_sensor_{sensor_idx}_mean.npy")
+        palm_taxel_mean.append(taxel_mean)
     for sensor_idx in range(1, 16):
         save_dir = "/home/mpan31415/ros2_ws/src/TactileManip/hand_interface/scripts/calib/taxel_mean/"
         taxel_mean = np.load(save_dir + f"finger_sensor_{sensor_idx}_mean.npy")
-        all_taxel_mean.append(taxel_mean)
-    return np.array(all_taxel_mean)  # shape = (15, 4, 4, 3)
+        finger_taxel_mean.append(taxel_mean)
+
+    # convert to numpy arrays
+    palm_taxel_mean = np.array(palm_taxel_mean)  # shape = (3, 4, 6, 3)
+    finger_taxel_mean = np.array(finger_taxel_mean)  # shape = (15, 4, 4, 3)
+
+    return palm_taxel_mean, finger_taxel_mean
 
 
 def extract_palm_sensor_data(sensor: SensorFull):
-    pos = sensor.sensor_pos
     taxel_msgs = sensor.taxels
     force_msgs = sensor.forces
     # convert to numpy arrays, shape = (4, 6, 3)
     taxels = np.array([[taxel_msg.x, taxel_msg.y, taxel_msg.z] for taxel_msg in taxel_msgs]).reshape((4, 6, 3))
     forces = np.array([[force_msg.x, force_msg.y, force_msg.z] for force_msg in force_msgs]).reshape((4, 6, 3))
-    # if 2nd or 3rd sensor, rotate data by 180 degrees to match physical orientation
-    if pos in [2, 3]:
-        taxels = np.rot90(taxels, 2, axes=(0, 1))
-        forces = np.rot90(forces, 2, axes=(0, 1))
     return taxels, forces
 
 def extract_finger_sensor_data(sensor: SensorFull):
-    pos = sensor.sensor_pos
     taxel_msgs = sensor.taxels
     # convert to numpy array, shape = (4, 4, 3)
     taxels = np.array([[taxel_msg.x, taxel_msg.y, taxel_msg.z] for taxel_msg in taxel_msgs]).reshape((4, 4, 3))

@@ -7,7 +7,6 @@ from xela_server_ros2.msg import SensStream, SensorFull
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 ############################################################
@@ -17,8 +16,9 @@ class TactileListener(Node):
         super().__init__('tactile_listener')
 
         # subscribe to palm & finger sensors
-        self.palm_sub = self.create_subscription(SensStream, 'xPalmTopic', self.palm_cb, 10)
-        self.fingers_sub = self.create_subscription(SensStream, 'xFingersTopic', self.fingers_cb, 10)
+        depth = 5
+        self.palm_sub = self.create_subscription(SensStream, 'xPalmTopic', self.palm_cb, depth)
+        self.fingers_sub = self.create_subscription(SensStream, 'xFingersTopic', self.fingers_cb, depth)
 
         # tactile data buffer
         self.palm_forces = np.zeros((3, 4, 6, 3))
@@ -27,7 +27,7 @@ class TactileListener(Node):
 
         # read taxel mean
         self.palm_taxel_mean, self.finger_taxel_mean = get_taxel_mean()    # shapes: (), (15, 4, 4, 3)
-        self.palm_taxel_stddev = 400.0       
+        self.palm_taxel_stddev = 500.0       
         self.finger_taxel_stddev = 250.0       # TODO: calibrate/estimate?
 
         # palm data plotter
@@ -36,10 +36,6 @@ class TactileListener(Node):
 
         # initialize plots
         self.init_tactile_plot()
-
-
-    # TODO:
-    # - subsample tactile data (e.g. 100 Hz or 50 Hz)
         
         
     def palm_cb(self, msg: SensStream):
@@ -53,7 +49,7 @@ class TactileListener(Node):
             # normalize raw taxel data
             normalized_taxels = (taxels - self.palm_taxel_mean[i, :, :, :]) / self.palm_taxel_stddev
 
-            # if 2nd or 3rd sensor, rotate data by 180 degrees to match physical orientation
+            # apply rotation to align
             if i+1 in [2, 3]:
                 normalized_taxels = np.rot90(normalized_taxels, 2, axes=(0, 1))
                 forces = np.rot90(forces, 2, axes=(0, 1))
@@ -75,14 +71,14 @@ class TactileListener(Node):
             # normalize raw taxel data
             normalized_taxels = (taxels - self.finger_taxel_mean[i, :, :, :]) / self.finger_taxel_stddev
 
-            # TODO: apply rotation to align
-            if i+1 in [1, 4, 8, 12]:    # fingertips: tranpose
+            # apply rotation to align
+            if i+1 in [1, 4, 8, 12]:       # fingertips: tranpose
                 normalized_taxels = np.transpose(normalized_taxels, (1, 0, 2))
-            elif i+1 in [2, 5, 9, 13]:    # 2nd from tip: rotate clockwise by 90 deg
+            elif i+1 in [2, 5, 9, 13]:     # 2nd from tip: rotate clockwise by 90 deg
                 normalized_taxels = np.rot90(normalized_taxels, -1, axes=(0, 1))
             elif i+1 in [3, 6, 10, 14]:    # 3rd from tip: rotate anticlockwise by 90 deg
                 normalized_taxels = np.rot90(normalized_taxels, 1, axes=(0, 1))
-            elif i+1 in [7, 11, 15]:    # base (excluding thumb): rotate clockwise by 90 deg
+            elif i+1 in [7, 11, 15]:       # base (excluding thumb): rotate clockwise by 90 deg
                 normalized_taxels = np.rot90(normalized_taxels, -1, axes=(0, 1))
 
             # store

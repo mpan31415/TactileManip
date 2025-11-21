@@ -10,10 +10,10 @@ from matplotlib.gridspec import GridSpec
 
 
 ############################################################
-class TactileListener(Node):
+class TactileListenerNode(Node):
 
     def __init__(self):
-        super().__init__('tactile_listener')
+        super().__init__('tactile_listener_node')
 
         # subscribe to palm & finger sensors
         depth = 5
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     
     rclpy.init(args=None)
 
-    node = TactileListener()
+    node = TactileListenerNode()
     rclpy.spin(node)
 
     node.destroy_node()

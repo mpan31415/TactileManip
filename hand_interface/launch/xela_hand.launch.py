@@ -7,8 +7,8 @@ def generate_launch_description():
         # tactile listener node
         Node(
             package='hand_interface',
-            executable='tactile_listener.py',
-            name='tactile_listener',
+            executable='tactile_listener_node.py',
+            name='tactile_listener_node',
             output='screen'
         ),
 

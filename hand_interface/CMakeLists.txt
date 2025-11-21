@@ -26,7 +26,7 @@ install(PROGRAMS
   scripts/calib/finger_sensor_recorder.py
   scripts/calib/palm_sensor_recorder.py
 
-  scripts/tactile_listener.py
+  scripts/tactile_listener_node.py
 
   DESTINATION lib/${PROJECT_NAME}
 )
